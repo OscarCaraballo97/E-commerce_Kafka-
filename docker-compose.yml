@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
@@ -15,44 +17,63 @@ services:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     depends_on:
       - zookeeper
 
   mongo:
     image: mongo
-    platform: linux/arm64
     ports:
       - 27017:27017
+    volumes:
+      - mongo_data:/data/db
+
+  catalog-service:
+    build: ./catalog-service
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+      - MONGO_URI=mongodb://mongo:27017/catalogdb
+      - KAFKA_BROKER=kafka:9092
+      - KAFKA_CLIENT_ID=catalog-service
+      - TOPIC_PRODUCT_CREATED=product-created
+    depends_on:
+      - kafka
+      - mongo
 
   invoice-service:
     build: ./invoice-service
+    ports:
+      - 3001:3001
     depends_on:
       - kafka
       - mongo
-    ports:
-      - 3001:3001
 
   order-service:
     build: ./order-service
+    ports:
+      - 3002:3002
     depends_on:
       - kafka
       - mongo
-    ports:
-      - 3002:3002
 
   notification-service:
     build: ./notification-service
+    ports:
+      - 3003:3003
     depends_on:
       - kafka
       - mongo
-    ports:
-      - 3003:3003
 
   frontend-api:
     build: ./frontend-api
+    ports:
+      - 3000:3000
     depends_on:
       - order-service
       - invoice-service
-    ports:
-      - 3000:3000
+
+volumes:
+  mongo_data:
